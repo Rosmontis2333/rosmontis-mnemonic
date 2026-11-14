@@ -1,0 +1,7 @@
+build*/
+dist/
+*.exe
+*.pdb
+rosmontis-mnemonic
+rosmontis-selftest
+.DS_Store
