@@ -10,7 +10,7 @@
 #define MEMORY_KIB (8U * 1024U * 1024U)
 #endif
 #ifndef TIME_COST
-#define TIME_COST 256
+#define TIME_COST 32
 #endif
 static unsigned char *arena;
 static size_t arena_size;
@@ -69,7 +69,7 @@ static int application(int argc,char **argv) {
         puts("阶段 1/3：SHA-512 × 233 → SHA-256 × 233"); fflush(stdout);
         rounds(a,n,pre); sha256("rosmontis",9,salt);
         wipe(a,n);
-        puts("阶段 2/3：正在计算（Argon2d：8 GiB、256 次、并行度 8）……"); fflush(stdout);
+        puts("阶段 2/3：正在计算（Argon2d：8 GiB、32 次、并行度 8）……"); fflush(stdout);
         argon_start=monotonic_seconds();
         rosmontis_argon_progress(0, TIME_COST);
         argon2_context ctx={0};

@@ -14,7 +14,7 @@
 
 输入按 UTF-8 编码，不去除空格、不进行 Unicode 归一化。Windows 使用 ReadConsoleW 读取 UTF-16，再在锁定缓冲区中转换为 UTF-8。只移除交互回车产生的行结束符。
 
-原始字节 SHA-512 233 轮 → SHA-256 233 轮 → Argon2d v1.3（m=8388608 KiB，t=256，lanes=8，threads=8，输出 32 字节，盐为 SHA256("rosmontis") 的 32 字节原始摘要）→ SHA-512 233 轮 → SHA-256 233 轮 → BIP39 英文 24 词（包含校验和）。
+原始字节 SHA-512 233 轮 → SHA-256 233 轮 → Argon2d v1.3（m=8388608 KiB，t=32，lanes=8，threads=8，输出 32 字节，盐为 SHA256("rosmontis") 的 32 字节原始摘要）→ SHA-512 233 轮 → SHA-256 233 轮 → BIP39 英文 24 词（包含校验和）。
 
 Argon2 内存块按算法要求向下对齐到 lanes×4；仍传入原始 m 参数，工作区预留完整 8 GiB。这与 argon2-cffi 的结果相同。三个平台共用同一份 SHA-2、Argon2 和词表，不使用平台特有哈希实现。
 
@@ -56,10 +56,13 @@ API 文档：[Apple mlock](https://developer.apple.com/library/archive/documenta
 
 此前版本已在 macOS Apple Silicon 上通过 536 个 SHA-256/512 对照向量、低内存 256 轮助记词对照及进度、内存清理测试。本次更新取消二次确认，将正式内存参数改为 8 GiB，并将并行度改为 8；验证了单次输入后开始计算的交互流程、低内存 256 轮结果与 CTest。未执行正式 8 GiB 锁定和完整派生。
 
-v1.0.1 已通过 GitHub Actions Windows x64、Linux x64、macOS 的原生构建和 CTest（含八线程 Argon2d、锁定计算栈、哈希向量和清理测试）。Windows/Linux 下载包为 Zig 交叉编译产物，未直接在 CI 运行这些下载文件；Windows ARM64、Linux ARM64 和 macOS Intel 切片尚未实机验证。未执行完整 8 GiB×256 轮计算。
+v1.0.1 已通过 GitHub Actions Windows x64、Linux x64、macOS 的原生构建和 CTest（含八线程 Argon2d、锁定计算栈、哈希向量和清理测试）。Windows/Linux 下载包为 Zig 交叉编译产物，未直接在 CI 运行这些下载文件；Windows ARM64、Linux ARM64 和 macOS Intel 切片尚未实机验证。未执行完整 8 GiB×32 轮计算。
 
 v1.0.2 改为输入回显、回车后清屏；保留锁页、单次输入、计算参数及助记词输出。
 
 v1.0.1 修复 Windows 把 VirtualQuery 的单个 4 KiB 区域误认为完整 fiber 栈的问题：现在识别整个栈分配范围，预提交并锁定全部可用计算栈，保留底部不可访问页；真正锁定失败时显示失败 API 和 Windows 错误码，仍然停止计算。
 
 Argon2 上游许可证见 `argon2/LICENSE`。修改仅涉及进度回调与线程适配，保留原算法。
+
+
+v1.0.3 将正式 Argon2d 迭代次数改为 32，保持 8 GiB 和并行度 8。历史版本的 256 轮测试记录仅描述当时验证；当前版本通过低内存 32 轮计算对照、完整进度及输入回显/清屏测试。内存和迭代参数改变会改变同一输入生成的助记词。
