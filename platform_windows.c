@@ -3,6 +3,7 @@
 #define _WIN32_WINNT 0x0A00
 #endif
 #include <windows.h>
+#include <bcrypt.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -164,3 +165,9 @@ fail:
 }
 double monotonic_seconds(void) { LARGE_INTEGER t,f; QueryPerformanceCounter(&t); QueryPerformanceFrequency(&f); return (double)t.QuadPart/f.QuadPart; }
 void platform_shutdown(void) { terminal_leave(); locked_free(wide_input,INPUT_CAP*sizeof(WCHAR)); wide_input=NULL; if(saved_output_cp) SetConsoleOutputCP(saved_output_cp); }
+
+int platform_random(void *out,size_t n) {
+    if(n>0xffffffffU)return 0;
+    if(BCryptGenRandom(NULL,out,(ULONG)n,BCRYPT_USE_SYSTEM_PREFERRED_RNG)!=0){wipe(out,n);return 0;}
+    return 1;
+}

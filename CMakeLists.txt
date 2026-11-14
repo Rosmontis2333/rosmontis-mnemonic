@@ -54,3 +54,22 @@ if(APPLE)
       COMMAND "${CODESIGN}" --force --sign - "$<TARGET_FILE:rosmontis-selftest>")
   endif()
 endif()
+
+set(WALLET_SOURCES wallet.c keccak.c vendor/ripemd160.c
+  vendor/secp256k1-0.8.0/src/secp256k1.c
+  vendor/secp256k1-0.8.0/src/precomputed_ecmult.c
+  vendor/secp256k1-0.8.0/src/precomputed_ecmult_gen.c)
+foreach(target rosmontis-mnemonic rosmontis-selftest)
+  if(TARGET ${target})
+    target_sources(${target} PRIVATE ${WALLET_SOURCES})
+    target_compile_definitions(${target} PRIVATE SECP256K1_STATIC)
+    target_include_directories(${target} PRIVATE vendor vendor/secp256k1-0.8.0/include)
+    if(WIN32)
+      target_link_libraries(${target} PRIVATE bcrypt)
+    endif()
+  endif()
+endforeach()
+
+if(NOT MSVC)
+  set_source_files_properties(vendor/secp256k1-0.8.0/src/secp256k1.c PROPERTIES COMPILE_OPTIONS "-Wno-unused-function")
+endif()

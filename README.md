@@ -46,7 +46,7 @@ Windows 多配置生成器的程序位于 `build/Release/rosmontis-mnemonic.exe`
 - POSIX：mmap+mlock 锁定输入、Argon2 工作区、自定义 pthread 计算栈。Linux 另设 MADV_DONTDUMP、PR_SET_DUMPABLE=0；POSIX 检查 RLIMIT_CORE=0 是否成功。
 - Windows：VirtualAlloc+VirtualLock 锁定输入和工作区。每个计算线程在预提交的 fiber 栈中运行，先锁定实际已提交的栈区，再执行哈希；完成后切回监督栈，覆写整个计算栈，再解锁并删除 fiber。若栈区过小或锁定失败，线程创建返回错误。
 - Windows 使用 SetErrorMode 的 SEM_NOGPFAULTERRORBOX 抑制本进程的正常 WER 路径。这不等于能阻止管理员配置的 LocalDumps、调试器、外部转储工具或整机内存转储。
-- 正常释放前用 volatile 覆写（Windows 使用 SecureZeroMemory），然后解锁、释放。程序不构造完整助记词字符串，关闭 stdout/stderr 用户态缓冲，不写日志或秘密文件。
+- 正常释放前用 volatile 覆写（Windows 使用 SecureZeroMemory），然后解锁、释放。为 BIP39 seed 派生，程序在锁定的计算栈上临时构造固定大小的助记词字符串，使用后立即覆写；seed、私钥、链码、HMAC 中间值同样清零。secp256k1 上下文使用锁定的预分配内存，随机盲化后使用，释放前清零。关闭 stdout/stderr 用户态缓冲，不写日志或秘密文件。
 - Ctrl+C / 终止时尽力恢复终端；进程终止前，敏感工作区保持锁定。强制杀进程或系统崩溃无法保证执行所有覆写，不能宣称物理内存、寄存器、操作系统/运行库内部对象中绝对不存在短暂副本。
 - 本程序无法阻止内核、管理员、恶意软件、终端会话录制、录屏或系统休眠镜像。不能追溯清除旧版本的交换页、崩溃文件和备份。替代屏幕也不是对所有终端的录制保证。
 
@@ -66,3 +66,18 @@ Argon2 上游许可证见 `argon2/LICENSE`。修改仅涉及进度回调与线�
 
 
 v1.0.3 将正式 Argon2d 迭代次数改为 32，保持 8 GiB 和并行度 8。历史版本的 256 轮测试记录仅描述当时验证；当前版本通过低内存 32 轮计算对照、完整进度及输入回显/清屏测试。内存和迭代参数改变会改变同一输入生成的助记词。
+
+
+## v1.1.0：EVM 地址和 zpub
+
+助记词之后显示：
+
+- EVM 第一个地址：`m/44'/60'/0'/0/0`，secp256k1 非压缩公钥的 Keccak-256 后 20 字节，使用 EIP-55 校验和显示。不是 SHA3-256。
+- Bitcoin 主网 BIP84 账户 0 的扩展公钥 zpub：`m/84'/0'/0'`，版本 `0x04b24746`，Base58Check 编码。
+- BIP39 passphrase 固定为空。输出页面标明路径与 passphrase 约定；钱包导入时应使用同样的设置。
+
+地址由最终显示的英文助记词按 BIP39（PBKDF2-HMAC-SHA512、2048 轮）生成 seed，再通过 BIP32 派生。此功能不修改助记词算法和 Argon2 参数。程序不显示 seed、私钥、zprv。
+
+新增验证：BIP84 官方 12 词向量、EVM 校验和地址向量，以及 ethers 与 @scure/bip32 独立生成的 3 组 24 词向量。完整交互流程在低内存测试配置下核对助记词、EVM 地址和 zpub。
+
+参考：[BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)、[BIP32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki)、[BIP84 含官方测试向量](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)、[Ethereum 地址](https://ethereum.org/developers/docs/accounts/)。椭圆曲线运算使用内置 libsecp256k1 v0.8.0；来源与许可证见 `vendor/README.md`。

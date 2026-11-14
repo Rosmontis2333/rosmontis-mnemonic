@@ -17,5 +17,6 @@ void terminal_leave(void);
 int terminal_readline(char *,size_t,size_t *);
 double monotonic_seconds(void);
 void platform_shutdown(void);
+int platform_random(void *,size_t);
 void platform_set_emergency_cleanup(void (*)(void));
 #endif

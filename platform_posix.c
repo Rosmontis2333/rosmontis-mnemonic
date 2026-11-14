@@ -5,6 +5,7 @@
 #include <termios.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
@@ -83,3 +84,10 @@ int terminal_readline(char *out,size_t cap,size_t *len) {
 }
 double monotonic_seconds(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return t.tv_sec+t.tv_nsec/1e9; }
 void platform_shutdown(void) { terminal_leave(); }
+
+int platform_random(void *out,size_t n) {
+    int fd=open("/dev/urandom",O_RDONLY);if(fd<0)return 0;
+    unsigned char *p=out;size_t done=0;
+    while(done<n){ssize_t got=read(fd,p+done,n-done);if(got<0&&errno==EINTR)continue;if(got<=0){close(fd);wipe(out,n);return 0;}done+=(size_t)got;}
+    close(fd);return 1;
+}

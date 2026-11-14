@@ -1,5 +1,6 @@
 #include "platform.h"
 #include "sha2.h"
+#include "wallet.h"
 #include <argon2.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -96,6 +97,13 @@ static int application(int argc,char **argv) {
                 }
                 printf("%02d. %-9s%s",i+1,words[index],i%4==3?"\n":"  ");
             }
+            wallet_public wallet;
+            if(wallet_from_entropy(entropy,&wallet)) {
+                puts("\nEVM 地址（m/44'/60'/0'/0/0）："); puts(wallet.evm);
+                puts("\nBitcoin 主网 zpub（m/84'/0'/0'）："); puts(wallet.zpub);
+                puts("\nBIP39 passphrase：空");
+            } else { fputs("\n地址派生失败，未输出不完整结果。\n",stderr); code=1; }
+            wipe(&wallet,sizeof(wallet));
             wipe(entropy,32); wipe(check,32);
         }
         wipe(derived,32); wipe(salt,32);
