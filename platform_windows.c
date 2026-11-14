@@ -40,9 +40,16 @@ static VOID WINAPI secure_fiber(void *arg) {
     secure_thread *t=arg;
     MEMORY_BASIC_INFORMATION region;
     unsigned char marker=0;
-    if(!VirtualQuery(&marker,&region,sizeof(region)) || region.State!=MEM_COMMIT
-       || (region.Protect & (PAGE_GUARD|PAGE_NOACCESS)) || region.RegionSize<STACK_BYTES/2
-       || !VirtualLock(region.BaseAddress,region.RegionSize)) {
+    SIZE_T queried=VirtualQuery(&marker,&region,sizeof(region));
+    if(!queried || region.State!=MEM_COMMIT
+       || (region.Protect & (PAGE_GUARD|PAGE_NOACCESS)) || region.RegionSize<STACK_BYTES/2) {
+        fprintf(stderr,"Stack inspection failed: query=%zu state=0x%lx protection=0x%lx region=%zu required=%u error=%lu\n",
+            (size_t)queried,(unsigned long)(queried?region.State:0),(unsigned long)(queried?region.Protect:0),
+            (size_t)(queried?region.RegionSize:0),STACK_BYTES/2,(unsigned long)GetLastError());
+        t->startup_error=1; SetEvent(t->ready); SwitchToFiber(t->supervisor); return;
+    }
+    if(!VirtualLock(region.BaseAddress,region.RegionSize)) {
+        fprintf(stderr,"Stack VirtualLock failed: bytes=%zu Windows error=%lu\n",(size_t)region.RegionSize,(unsigned long)GetLastError());
         t->startup_error=1; SetEvent(t->ready); SwitchToFiber(t->supervisor); return;
     }
     t->stack=region.BaseAddress; t->stack_size=region.RegionSize;
