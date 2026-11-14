@@ -39,23 +39,44 @@ struct secure_thread {
 static VOID WINAPI secure_fiber(void *arg) {
     secure_thread *t=arg;
     MEMORY_BASIC_INFORMATION region;
+    SYSTEM_INFO system; GetSystemInfo(&system);
     unsigned char marker=0;
-    SIZE_T queried=VirtualQuery(&marker,&region,sizeof(region));
-    if(!queried || region.State!=MEM_COMMIT
-       || (region.Protect & (PAGE_GUARD|PAGE_NOACCESS)) || region.RegionSize<STACK_BYTES/2) {
-        fprintf(stderr,"Stack inspection failed: query=%zu state=0x%lx protection=0x%lx region=%zu required=%u error=%lu\n",
-            (size_t)queried,(unsigned long)(queried?region.State:0),(unsigned long)(queried?region.Protect:0),
-            (size_t)(queried?region.RegionSize:0),STACK_BYTES/2,(unsigned long)GetLastError());
-        t->startup_error=1; SetEvent(t->ready); SwitchToFiber(t->supervisor); return;
+    const char *stage="VirtualQuery";
+    DWORD error=0;
+    if(!VirtualQuery(&marker,&region,sizeof(region))) goto fail;
+    unsigned char *base=region.AllocationBase,*end=base;
+    /* VirtualQuery returns one protection region, not the whole stack. */
+    for(;;) {
+        MEMORY_BASIC_INFORMATION part;
+        if(!VirtualQuery(end,&part,sizeof(part))) goto fail;
+        if(part.AllocationBase!=base) break;
+        if(!part.RegionSize || part.RegionSize>64U*1024U*1024U
+           || (size_t)(end-base)>64U*1024U*1024U-part.RegionSize) {
+            error=ERROR_INVALID_ADDRESS; goto fail;
+        }
+        end=(unsigned char *)part.BaseAddress+part.RegionSize;
     }
-    if(!VirtualLock(region.BaseAddress,region.RegionSize)) {
-        fprintf(stderr,"Stack VirtualLock failed: bytes=%zu Windows error=%lu\n",(size_t)region.RegionSize,(unsigned long)GetLastError());
-        t->startup_error=1; SetEvent(t->ready); SwitchToFiber(t->supervisor); return;
-    }
-    t->stack=region.BaseAddress; t->stack_size=region.RegionSize;
+    unsigned char *low=base+system.dwPageSize;
+    size_t bytes=(size_t)(end-low);
+    if(bytes<STACK_BYTES/2) { error=ERROR_BAD_LENGTH; goto fail; }
+    /* Keep the lowest page inaccessible. Commit all usable pages before any
+       secrets enter, so later stack growth cannot create unlocked pages. */
+    stage="VirtualAlloc(stack commit)";
+    if(!VirtualAlloc(low,bytes,MEM_COMMIT,PAGE_READWRITE)) goto fail;
+    DWORD previous;
+    stage="VirtualProtect(stack)";
+    if(!VirtualProtect(low,bytes,PAGE_READWRITE,&previous)) goto fail;
+    stage="VirtualLock(stack)";
+    if(!VirtualLock(low,bytes)) goto fail;
+    t->stack=low; t->stack_size=bytes;
     SetEvent(t->ready);
     t->result=t->fn(t->arg);
     SwitchToFiber(t->supervisor);
+    return;
+fail:
+    if(!error) error=GetLastError();
+    fprintf(stderr,"Secure stack initialization failed: %s, Windows error=%lu\n",stage,(unsigned long)error);
+    t->startup_error=1; SetEvent(t->ready); SwitchToFiber(t->supervisor);
 }
 static DWORD WINAPI thread_entry(void *arg) {
     secure_thread *t=arg;
