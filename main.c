@@ -38,7 +38,7 @@ static int setting(const char *prompt,int fractional,double max,double *value) {
     }
 }
 static int configure(void) {
-    puts("自定义 Argon2d 配置（回车保留默认值；GB 按 GiB=1024³ 字节计算）");
+    puts("自定义 Argon2d 配置");
     for(;;) {
         double gb=(double)MEMORY_KIB/1048576.0,t=TIME_COST,p=8;
         if(!setting("内存大小 GB [8]（支持小数，最大 4095）：",1,4095,&gb)
