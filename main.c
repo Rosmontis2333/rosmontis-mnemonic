@@ -33,8 +33,11 @@ static char *read_secret(const char *prompt,size_t *n,int slot) {
     fputs(prompt,stdout);
     char *s=inputs[slot];
     wipe(s,INPUT_CAP); *n=0;
-    if(terminal_readline(s,INPUT_CAP,n)) { wipe(s,INPUT_CAP); return NULL; }
-    putchar('\n'); return s;
+    int rc=terminal_readline(s,INPUT_CAP,n);
+    /* Clear the entire alternate screen, including wrapped input lines. */
+    fputs("\033[2J\033[H",stdout);
+    if(rc) { wipe(s,INPUT_CAP); return NULL; }
+    return s;
 }
 static void rounds(const void *input,size_t len,unsigned char out[32]) {
     unsigned char tmp[64],next[64];
@@ -59,7 +62,7 @@ static int application(int argc,char **argv) {
     if(terminal_enter()) { fputs("无法设置安全交互终端，已停止。\n",stderr); return 2; }
     puts("Rosmontis 助记词生成器\n");
     size_t n=0; int code=0;
-    char *a=read_secret("请输入字符串（输入不回显）：",&n,0);
+    char *a=read_secret("请输入字符串：",&n,0);
     if(!a) return 130;
     {
         unsigned char pre[32],salt[32],derived[32],entropy[32],check[32];

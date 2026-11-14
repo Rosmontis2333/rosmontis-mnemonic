@@ -62,7 +62,7 @@ int terminal_is_interactive(void) { return isatty(0)&&isatty(1)&&isatty(2); }
 static void interrupted(int sig) { if(emergency_cleanup) emergency_cleanup(); terminal_leave(); _exit(128+sig); }
 int terminal_enter(void) {
     if(tcgetattr(0,&saved)) return -1;
-    struct termios hidden=saved; hidden.c_lflag &= ~(ECHO|ECHONL);
+    struct termios hidden=saved; hidden.c_lflag |= ECHO|ICANON;
     if(tcsetattr(0,TCSAFLUSH,&hidden)) return -1;
     active=1; signal(SIGINT,interrupted); signal(SIGTERM,interrupted); signal(SIGHUP,interrupted);
     fputs("\033[?1049h\033[2J\033[H",stdout); return 0;

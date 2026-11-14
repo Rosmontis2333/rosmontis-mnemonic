@@ -6,7 +6,7 @@
 
 - macOS/Linux：在终端运行 `./rosmontis-mnemonic`。
 - Windows：在 Windows Terminal、PowerShell 或 cmd 中运行 `.\rosmontis-mnemonic.exe`。需要真正的 Windows 控制台，不能重定向输入输出；不支持旧版 Windows 或仅模拟 POSIX PTY 的终端。
-- 输入一次字符串后立即开始计算；输入不回显。显示 Argon2 每轮完成的轮数、百分比和耗时。助记词在替代屏幕中显示，回车清屏退出。
+- 输入一次字符串后立即开始计算；输入时回显，按回车后立即清除整个替代屏幕，再开始计算。显示 Argon2 每轮完成的轮数、百分比和耗时。助记词在替代屏幕中显示，回车清屏退出。
 - Linux 锁页限额需要至少约 8 GiB 加 64 MiB。用 `ulimit -l` 查看当前软限额（KiB）；若硬限额允许，可在启动程序的同一 shell 设置 `ulimit -l 8454144`。若提示不允许，需要管理员配置对应用户的 memlock 限额并重新登录。本程序不会修改系统配置或自动降级。
 - Windows 会申请增大本进程的工作集，再通过 VirtualLock 锁页；权限、可用物理内存或系统策略不允许时停止，不读取秘密。
 
@@ -57,6 +57,8 @@ API 文档：[Apple mlock](https://developer.apple.com/library/archive/documenta
 此前版本已在 macOS Apple Silicon 上通过 536 个 SHA-256/512 对照向量、低内存 256 轮助记词对照及进度、内存清理测试。本次更新取消二次确认，将正式内存参数改为 8 GiB，并将并行度改为 8；验证了单次输入后开始计算的交互流程、低内存 256 轮结果与 CTest。未执行正式 8 GiB 锁定和完整派生。
 
 v1.0.1 已通过 GitHub Actions Windows x64、Linux x64、macOS 的原生构建和 CTest（含八线程 Argon2d、锁定计算栈、哈希向量和清理测试）。Windows/Linux 下载包为 Zig 交叉编译产物，未直接在 CI 运行这些下载文件；Windows ARM64、Linux ARM64 和 macOS Intel 切片尚未实机验证。未执行完整 8 GiB×256 轮计算。
+
+v1.0.2 改为输入回显、回车后清屏；保留锁页、单次输入、计算参数及助记词输出。
 
 v1.0.1 修复 Windows 把 VirtualQuery 的单个 4 KiB 区域误认为完整 fiber 栈的问题：现在识别整个栈分配范围，预提交并锁定全部可用计算栈，保留底部不可访问页；真正锁定失败时显示失败 API 和 Windows 错误码，仍然停止计算。
 

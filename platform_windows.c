@@ -134,7 +134,7 @@ static BOOL WINAPI control_handler(DWORD kind) {
 int terminal_enter(void) {
     input_handle=GetStdHandle(STD_INPUT_HANDLE); output_handle=GetStdHandle(STD_OUTPUT_HANDLE);
     if(!GetConsoleMode(input_handle,&saved_input) || !GetConsoleMode(output_handle,&saved_output)) return -1;
-    if(!SetConsoleMode(input_handle,(saved_input|ENABLE_LINE_INPUT|ENABLE_PROCESSED_INPUT)&~ENABLE_ECHO_INPUT)) return -1;
+    if(!SetConsoleMode(input_handle,saved_input|ENABLE_LINE_INPUT|ENABLE_PROCESSED_INPUT|ENABLE_ECHO_INPUT)) return -1;
     if(!SetConsoleMode(output_handle,saved_output|ENABLE_VIRTUAL_TERMINAL_PROCESSING)) { SetConsoleMode(input_handle,saved_input); return -1; }
     if(!SetConsoleCtrlHandler(control_handler,TRUE)) { SetConsoleMode(input_handle,saved_input); SetConsoleMode(output_handle,saved_output); return -1; }
     active=1; fputs("\033[?1049h\033[2J\033[H",stdout); return 0;
