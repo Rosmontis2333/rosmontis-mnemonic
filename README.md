@@ -56,6 +56,8 @@ API 文档：[Apple mlock](https://developer.apple.com/library/archive/documenta
 
 此前版本已在 macOS Apple Silicon 上通过 536 个 SHA-256/512 对照向量、低内存 256 轮助记词对照及进度、内存清理测试。本次更新取消二次确认，将正式内存参数改为 8 GiB，并将并行度改为 8；验证了单次输入后开始计算的交互流程、低内存 256 轮结果与 CTest。未执行正式 8 GiB 锁定和完整派生。
 
-Windows x64/ARM64、Linux x64/ARM64 为交叉编译产物，尚未在目标系统实际运行。源码包含各系统原生构建及 CTest 的 GitHub Actions 配置；配置尚未上传或执行。macOS Intel 切片也尚未在 Intel 机器运行。未执行完整 8 GiB×256 轮计算。
+v1.0.1 已通过 GitHub Actions Windows x64、Linux x64、macOS 的原生构建和 CTest（含八线程 Argon2d、锁定计算栈、哈希向量和清理测试）。Windows/Linux 下载包为 Zig 交叉编译产物，未直接在 CI 运行这些下载文件；Windows ARM64、Linux ARM64 和 macOS Intel 切片尚未实机验证。未执行完整 8 GiB×256 轮计算。
+
+v1.0.1 修复 Windows 把 VirtualQuery 的单个 4 KiB 区域误认为完整 fiber 栈的问题：现在识别整个栈分配范围，预提交并锁定全部可用计算栈，保留底部不可访问页；真正锁定失败时显示失败 API 和 Windows 错误码，仍然停止计算。
 
 Argon2 上游许可证见 `argon2/LICENSE`。修改仅涉及进度回调与线程适配，保留原算法。
