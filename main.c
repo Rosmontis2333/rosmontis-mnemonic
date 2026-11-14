@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <errno.h>
+#include <math.h>
 #include "words.h"
 #ifndef MEMORY_KIB
 #define MEMORY_KIB (8U * 1024U * 1024U)
@@ -13,6 +15,43 @@
 #ifndef TIME_COST
 #define TIME_COST 32
 #endif
+static uint32_t memory_kib=MEMORY_KIB, iterations=TIME_COST, parallelism=8;
+/* Settings are public, read before any secret or protected work is allocated. */
+static int setting(const char *prompt,int fractional,double max,double *value) {
+    char line[128];
+    for(;;) {
+        fputs(prompt,stdout);
+        if(!fgets(line,sizeof(line),stdin))return 0;
+        if(!strchr(line,'\n')) {
+            int c;while((c=getchar())!='\n'&&c!=EOF){}
+            if(c==EOF)return 0;
+            puts("输入过长，请重新输入。");continue;
+        }
+        if(line[0]=='\n'||(line[0]=='\r'&&line[1]=='\n'))return 1;
+        char *end;errno=0;double v=strtod(line,&end);
+        while(*end==' '||*end=='\t'||*end=='\r'||*end=='\n')++end;
+        if(errno||end==line||*end||!isfinite(v)||v<=0||v>max
+           ||(!fractional&&v!=(double)(uint32_t)v)) {
+            puts("请输入范围内的正数；次数和并行度必须是整数。");continue;
+        }
+        *value=v;return 1;
+    }
+}
+static int configure(void) {
+    puts("自定义 Argon2d 配置（回车保留默认值；GB 按 GiB=1024³ 字节计算）");
+    for(;;) {
+        double gb=(double)MEMORY_KIB/1048576.0,t=TIME_COST,p=8;
+        if(!setting("内存大小 GB [8]（支持小数，最大 4095）：",1,4095,&gb)
+           ||!setting("迭代次数 [32]（1～4294967295）：",0,4294967295.0,&t)
+           ||!setting("并行度 [8]（1～256）：",0,256,&p))return 0;
+        uint32_t m=(uint32_t)(gb*1048576.0);
+        if(m<8*(uint32_t)p) {puts("内存不足：至少需要并行度 × 8 KiB，请重新设置。");continue;}
+        memory_kib=m;iterations=(uint32_t)t;parallelism=(uint32_t)p;
+        printf("实际配置：%.9g GiB（%u KiB），%u 次，并行度 %u。\n",
+            (double)m/1048576.0,m,iterations,parallelism);
+        return 1;
+    }
+}
 static unsigned char *arena;
 static size_t arena_size;
 static char *inputs[1];
@@ -49,11 +88,11 @@ static void rounds(const void *input,size_t len,unsigned char out[32]) {
     memcpy(out,tmp,32); wipe(tmp,64); wipe(next,64);
 }
 static int application(int argc,char **argv) {
-    (void)argv;
-    if(argc!=1 || !terminal_is_interactive()) {
-        fputs("请直接在交互式终端运行；不接受参数、管道或重定向。\n",stderr); return 2;
+    (void)argv; (void)argc;
+    if(!terminal_is_interactive()) {
+        fputs("请直接在交互式终端运行；不接受管道或重定向。\n",stderr); return 2;
     }
-    arena_size=(size_t)MEMORY_KIB*1024;
+    arena_size=(size_t)memory_kib*1024;
     arena=locked_alloc(arena_size);
     inputs[0]=locked_alloc(INPUT_CAP);
     if(!arena || !inputs[0]) {
@@ -70,13 +109,13 @@ static int application(int argc,char **argv) {
         puts("阶段 1/3：SHA-512 × 233 → SHA-256 × 233"); fflush(stdout);
         rounds(a,n,pre); sha256("rosmontis",9,salt);
         wipe(a,n);
-        puts("阶段 2/3：正在计算（Argon2d：8 GiB、32 次、并行度 8）……"); fflush(stdout);
+        printf("阶段 2/3：Argon2d：%.9g GiB（%u KiB）、%u 次、并行度 %u\n",(double)memory_kib/1048576.0,memory_kib,iterations,parallelism); fflush(stdout);
         argon_start=monotonic_seconds();
-        rosmontis_argon_progress(0, TIME_COST);
+        rosmontis_argon_progress(0, iterations);
         argon2_context ctx={0};
         ctx.out=derived; ctx.outlen=32; ctx.pwd=pre; ctx.pwdlen=32;
         ctx.salt=salt; ctx.saltlen=32;
-        ctx.t_cost=TIME_COST; ctx.m_cost=MEMORY_KIB; ctx.lanes=8; ctx.threads=8;
+        ctx.t_cost=iterations; ctx.m_cost=memory_kib; ctx.lanes=parallelism; ctx.threads=parallelism;
         ctx.version=ARGON2_VERSION_13;
         ctx.allocate_cbk=argon_alloc; ctx.free_cbk=argon_free;
         ctx.flags=ARGON2_FLAG_CLEAR_PASSWORD;
@@ -122,10 +161,11 @@ static void *application_thread(void *p) {
 int main(int argc,char **argv) {
     /* No stdio output buffer can retain printed mnemonic fragments. */
     setvbuf(stdout,NULL,_IONBF,0); setvbuf(stderr,NULL,_IONBF,0);
-    if(argc!=1 || !terminal_is_interactive()) {
-        fputs("请在交互式终端直接运行，不接受参数或重定向。\n",stderr); return 2;
+    if(!terminal_is_interactive()) {
+        fputs("请在交互式终端直接运行，不接受重定向。\n",stderr); return 2;
     }
-    if(platform_init((size_t)MEMORY_KIB*1024)) {
+    if(argc>1 && !configure())return 130;
+    if(platform_init((size_t)memory_kib*1024)) {
         fputs("无法启用内存锁定或崩溃转储防护；已停止，未读取秘密。\n",stderr); platform_shutdown(); return 1;
     }
     platform_set_emergency_cleanup(emergency_clear);

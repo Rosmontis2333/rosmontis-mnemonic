@@ -1,6 +1,6 @@
 # Rosmontis 助记词命令行程序
 
-支持 64 位 macOS（Apple Silicon / Intel）、Windows 10/11（x64 / ARM64）、Linux（x64 / ARM64）。无需 Python。参数固定，不允许从命令行、环境变量、文件或管道传入秘密。
+支持 64 位 macOS（Apple Silicon / Intel）、Windows 10/11（x64 / ARM64）、Linux（x64 / ARM64）。无需 Python。无参数时使用默认配置；任意参数触发交互设置。命令行参数内容不会作为秘密，也不会被解析为参数值。仍不允许通过环境变量、文件或管道传入秘密。
 
 ## 运行
 
@@ -81,3 +81,13 @@ v1.0.3 将正式 Argon2d 迭代次数改为 32，保持 8 GiB 和并行度 8。�
 新增验证：BIP84 官方 12 词向量、EVM 校验和地址向量，以及 ethers 与 @scure/bip32 独立生成的 3 组 24 词向量。完整交互流程在低内存测试配置下核对助记词、EVM 地址和 zpub。
 
 参考：[BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)、[BIP32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki)、[BIP84 含官方测试向量](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)、[Ethereum 地址](https://ethereum.org/developers/docs/accounts/)。椭圆曲线运算使用内置 libsecp256k1 v0.8.0；来源与许可证见 `vendor/README.md`。
+
+
+## v1.2.0：交互配置
+
+`rosmontis-mnemonic` 无参数启动默认使用 8 GiB、32 次、并行度 8。
+`rosmontis-mnemonic config` 或任何其他参数组合会依次询问内存（GB 按 GiB=1024³ 字节）、迭代次数、并行度。参数内容只作开关，不解析其值；不要把秘密放进启动命令。每项回车使用默认值。
+
+内存支持小数，最大 4095 GiB，转换为 KiB 时向下取整；实际 KiB 参数在运行时显示。迭代为 1～4294967295 的整数，并行为 1～256 的整数（通道数和线程数相同），内存不得少于并行度×8 KiB。极大的配置可能耗时极长或因系统资源不足停止。锁定失败仍然停止、不降级。
+
+设置仅用于本次进程，不保存配置。选择完成后才初始化受保护的计算环境和读取秘密；设置页面使用公开数字输入。复现钱包必须使用相同内存 KiB、迭代次数、并行度及输入字符串。参数不同，助记词、地址和 zpub 都会改变。
